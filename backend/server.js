@@ -24,6 +24,9 @@ mongoose.connect(process.env.MONGO_URI)
 
 app.use('/api/events', eventRoutes);
 app.use('/api/subscribe', subscribeRoute);
+app.get('/', (req,res)=>{
+  res.send('Sydney Events API is running');
+})
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
