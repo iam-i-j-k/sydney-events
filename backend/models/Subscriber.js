@@ -2,8 +2,9 @@
 import mongoose from 'mongoose';
 
 const subscriberSchema = new mongoose.Schema({
-  email: { type: String, required: true }, // removed unique: true
+  email: { type: String, required: true },
   eventLink: { type: String },
+  dob: { type: String },
   createdAt: { type: Date, default: Date.now },
 });
 

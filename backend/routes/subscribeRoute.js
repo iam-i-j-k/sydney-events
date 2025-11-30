@@ -1,53 +1,61 @@
 // backend/routes/subscribeRoute.js
 import express from 'express';
 import nodemailer from 'nodemailer';
+import Otp from '../models/Otp.js';
 import Subscriber from '../models/Subscriber.js';
 
 const router = express.Router();
 
-router.post('/', async (req, res) => {
+function generateOtp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+router.post('/send-otp', async (req, res) => {
   const { email, eventLink } = req.body;
+  if (!email || !eventLink) return res.status(400).json({ message: 'Email and Event Link required' });
 
-  console.log('Received subscribe request:', { email, eventLink });
+  const otp = generateOtp();
 
-  if (!email || !eventLink) {
-    console.log('Missing email or eventLink');
-    return res.status(400).json({ message: 'Email and Event Link required' });
-  }
+  await Otp.findOneAndUpdate(
+    { email, eventLink },
+    { otp, createdAt: new Date() },
+    { upsert: true, new: true }
+  );
 
-  try {
-    const subscriber = new Subscriber({ email, eventLink });
-    await subscriber.save();
-    console.log('Subscriber saved:', subscriber);
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_SENDER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+  });
 
-    // Send confirmation email
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_SENDER,
-        pass: process.env.EMAIL_PASSWORD,
-      },
-    });
+  await transporter.sendMail({
+    from: `"Sydney Events" <${process.env.EMAIL_SENDER}>`,
+    to: email,
+    subject: 'Your OTP for Sydney Event',
+    html: `<p>Your OTP is: <b>${otp}</b></p>`,
+  });
 
-    await transporter.sendMail({
-      from: `"Sydney Events" <${process.env.EMAIL_SENDER}>`,
-      to: email,
-      subject: 'Your Event Ticket Link',
-      html: `<p>Thanks for your interest! Click below to get your ticket:</p><a href="${eventLink}" target="_blank">Get Ticket</a>`,
-    });
+  res.json({ message: 'OTP sent' });
+});
 
-    console.log('Confirmation email sent to:', email);
+router.post('/verify-otp', async (req, res) => {
+  const { email, eventLink, otp } = req.body;
+  if (!email || !eventLink || !otp) return res.status(400).json({ message: 'All fields required' });
 
-    res.status(200).json({ message: 'Email sent and saved' });
-  } catch (err) {
-    if (err.code === 11000) {
-      // Duplicate email error
-      console.error('Duplicate email:', email);
-      return res.status(409).json({ message: 'This email is already subscribed.' });
-    }
-    console.error('Error in subscribe route:', err);
-    res.status(500).json({ message: 'Submission failed' });
-  }
+  const record = await Otp.findOne({ email, eventLink, otp });
+  if (!record) return res.status(400).json({ message: 'Invalid or expired OTP' });
+
+  await Subscriber.findOneAndUpdate(
+    { email, eventLink },
+    { email, eventLink, dob: req.body.dob },
+    { upsert: true, new: true }
+  );
+
+  await Otp.deleteOne({ _id: record._id });
+
+  res.json({ message: 'OTP verified' });
 });
 
 export default router;

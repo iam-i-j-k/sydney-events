@@ -16,8 +16,10 @@ export const scrapeSydneyEvents = async () => {
       timeout: 0
     });
 
+    await page.waitForSelector('a.event-card-link[data-event-id]', { timeout: 10000 });
+
     const events = await page.evaluate(() => {
-      const eventAnchors = Array.from(document.querySelectorAll('a.event-card-link[data-event-id]'));
+      const eventAnchors = Array.from(document.querySelectorAll('a[href*="/e/"]'));
 
       return eventAnchors.map(el => {
         let title = el.querySelector('h3')?.innerText.trim();
